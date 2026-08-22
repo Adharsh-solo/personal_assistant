@@ -1,0 +1,33 @@
+2026-08-22 20:29:06 [INFO] ==========================================
+2026-08-22 20:29:06 [INFO] Jarvis Assistant Initializing...
+2026-08-22 20:29:06 [INFO] ==========================================
+2026-08-22 20:29:06 [INFO] Loading Faster-Whisper model ('base') on device 'cuda'...
+2026-08-22 20:29:06 [INFO] Starting System Tray Icon loop...
+2026-08-22 20:29:12 [INFO] HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+2026-08-22 20:29:13 [INFO] HTTP Request: HEAD https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/config.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-22 20:29:13 [WARNING] Warning: You are sending unauthenticated requests to the HF Hub. Please set a HF_TOKEN to enable higher rate limits and faster downloads.
+2026-08-22 20:29:13 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Systran/faster-whisper-base/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/config.json "HTTP/1.1 200 OK"
+2026-08-22 20:29:13 [INFO] HTTP Request: HEAD https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/vocabulary.txt "HTTP/1.1 307 Temporary Redirect"
+2026-08-22 20:29:13 [INFO] HTTP Request: GET https://huggingface.co/api/resolve-cache/models/Systran/faster-whisper-base/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/config.json "HTTP/1.1 200 OK"
+2026-08-22 20:29:13 [INFO] HTTP Request: HEAD https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/model.bin "HTTP/1.1 302 Found"
+2026-08-22 20:29:13 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Systran/faster-whisper-base/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/vocabulary.txt "HTTP/1.1 200 OK"
+2026-08-22 20:29:13 [INFO] HTTP Request: HEAD https://huggingface.co/Systran/faster-whisper-base/resolve/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/tokenizer.json "HTTP/1.1 307 Temporary Redirect"
+2026-08-22 20:29:13 [INFO] HTTP Request: GET https://huggingface.co/api/resolve-cache/models/Systran/faster-whisper-base/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/vocabulary.txt "HTTP/1.1 200 OK"
+2026-08-22 20:29:13 [INFO] HTTP Request: HEAD https://huggingface.co/api/resolve-cache/models/Systran/faster-whisper-base/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/tokenizer.json "HTTP/1.1 200 OK"
+2026-08-22 20:29:13 [INFO] HTTP Request: GET https://huggingface.co/api/resolve-cache/models/Systran/faster-whisper-base/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66/tokenizer.json "HTTP/1.1 200 OK"
+2026-08-22 20:29:13 [INFO] HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/xet-read-token/ebe41f70d5b6dfa9166e2c581c45c9c0cfc57b66 "HTTP/1.1 200 OK"
+2026-08-22 20:29:43 [INFO] Faster-Whisper loaded successfully on CUDA GPU.
+2026-08-22 20:29:43 [INFO] Loading openWakeWord model ('hey_jarvis')...
+2026-08-22 20:30:27 [INFO] openWakeWord initialized successfully for model 'hey_jarvis'.
+2026-08-22 20:30:27 [INFO] State -> LISTENING: Listening for 'hey_jarvis'
+2026-08-22 20:36:37 [ERROR] Fatal error in assistant loop: Unanticipated host error [PaErrorCode -9999]: 'There is no driver installed on your system.' [MME error 6]
+Traceback (most recent call last):
+  File "D:\personal_assistant\jarvis.py", line 385, in run_assistant_loop
+    pcm_data, overflowed = stream.read(CHUNK_SIZE)
+  File "C:\Users\Adharsh PB\AppData\Local\Programs\Python\Python310\lib\site-packages\sounddevice.py", line 1217, in _raw_read
+    _check(err)
+  File "C:\Users\Adharsh PB\AppData\Local\Programs\Python\Python310\lib\site-packages\sounddevice.py", line 2836, in _check
+    raise PortAudioError(errormsg, err, hosterror_info)
+sounddevice.PortAudioError: Unanticipated host error [PaErrorCode -9999]: 'There is no driver installed on your system.' [MME error 6]
+2026-08-22 20:36:37 [INFO] State -> ERROR: Error: Unanticipated host error [PaErrorCode -9999]: 'There is no driver installed on your system.' [MME error 6]
+2026-08-22 20:36:37 [INFO] Jarvis Assistant loop terminated.
