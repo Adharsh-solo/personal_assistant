@@ -41,7 +41,9 @@ OLLAMA_URL = "http://localhost:11434"
 OLLAMA_MODEL = "llama3.1:8b"
 
 # Audio Recording Settings
+INPUT_DEVICE_INDEX = None       # None uses standard default MME driver (Microsoft Sound Mapper)
 SAMPLE_RATE = 16000             # openWakeWord requires 16000 Hz
+
 CHUNK_SIZE = 1280               # 1280 samples (~80ms chunk at 16kHz)
 SILENCE_THRESHOLD = 0.015       # Energy threshold for silence detection
 SILENCE_DURATION = 1.5          # Seconds of silence to trigger end of speech
@@ -49,6 +51,7 @@ MAX_RECORD_SECONDS = 12.0       # Maximum audio recording duration per prompt
 
 # System & Logging
 LOG_FILE = "jarvis.log"
+
 
 
 # ==========================================
@@ -173,7 +176,7 @@ class JarvisAssistant:
         logging.info(f"State -> {new_state.upper()}: {description}")
         if self.tray_icon:
             self.tray_icon.icon = create_tray_icon_image(new_state)
-            self.tray_icon.title = f"Jarvis - {description}"
+            self.tray_icon.title = f"Jarvis - {description}"[:120]
 
     def init_whisper(self):
         """Lazy load Faster-Whisper model on startup."""
@@ -235,7 +238,18 @@ class JarvisAssistant:
         has_spoken = False
         start_time = time.time()
 
-        with sd.InputStream(samplerate=SAMPLE_RATE, channels=1, dtype="float32") as stream:
+        dev_idx = INPUT_DEVICE_INDEX if INPUT_DEVICE_INDEX is not None else sd.default.device[0]
+        try:
+            dev_channels = max(1, sd.query_devices(dev_idx, "input")["max_input_channels"])
+        except Exception:
+            dev_channels = 1
+
+        with sd.InputStream(
+            samplerate=SAMPLE_RATE,
+            channels=dev_channels,
+            dtype="float32",
+            device=INPUT_DEVICE_INDEX,
+        ) as stream:
             while not self.stop_event.is_set():
                 elapsed = time.time() - start_time
                 if elapsed >= MAX_RECORD_SECONDS:
@@ -246,7 +260,11 @@ class JarvisAssistant:
                 if overflowed:
                     logging.warning("Audio recording buffer overflowed.")
 
-                audio_chunk = data.flatten()
+                if dev_channels > 1:
+                    audio_chunk = np.mean(data, axis=1).astype(np.float32)
+                else:
+                    audio_chunk = data.flatten()
+
                 audio_buffer.append(audio_chunk)
 
                 # Compute Root Mean Square (RMS) energy
@@ -367,14 +385,27 @@ class JarvisAssistant:
             self.set_state("error", "openWakeWord failed to load")
             return
 
+        dev_idx = INPUT_DEVICE_INDEX if INPUT_DEVICE_INDEX is not None else sd.default.device[0]
+        try:
+            device_info = sd.query_devices(dev_idx, "input")
+            dev_channels = max(1, device_info["max_input_channels"])
+            logging.info(f"Using audio input device [{dev_idx}]: '{device_info['name']}' ({dev_channels} channels)")
+        except Exception as dev_err:
+            dev_channels = 1
+            logging.warning(f"Could not query input device info: {dev_err}")
+
         self.set_state("listening", f"Listening for '{WAKE_WORD_MODEL}'")
+
+        silent_chunk_count = 0
+        warned_silence = False
 
         try:
             with sd.RawInputStream(
                 samplerate=SAMPLE_RATE,
                 blocksize=CHUNK_SIZE,
                 dtype="int16",
-                channels=1,
+                channels=dev_channels,
+                device=INPUT_DEVICE_INDEX,
             ) as stream:
                 while not self.stop_event.is_set():
                     if self.is_paused:
@@ -386,7 +417,28 @@ class JarvisAssistant:
                     if overflowed:
                         continue
 
-                    pcm = np.frombuffer(pcm_data, dtype=np.int16)
+                    pcm_raw = np.frombuffer(pcm_data, dtype=np.int16)
+                    if dev_channels > 1 and len(pcm_raw) >= dev_channels:
+                        pcm_matrix = pcm_raw.reshape(-1, dev_channels)
+                        pcm = np.mean(pcm_matrix, axis=1).astype(np.int16)
+                    else:
+                        pcm = pcm_raw
+
+                    # Diagnostic check for dead/muted microphone signal
+                    max_amp = np.max(np.abs(pcm)) if len(pcm) > 0 else 0
+                    if max_amp <= 2:
+                        silent_chunk_count += 1
+                        if silent_chunk_count >= 100 and not warned_silence:
+                            logging.warning(
+                                "Microphone signal level is near ZERO (Max Amp <= 2). "
+                                "Your microphone may be muted, disabled, or set to the wrong input device. "
+                                "Run 'python jarvis.py --list-devices' to check available microphones."
+                            )
+                            warned_silence = True
+                    else:
+                        silent_chunk_count = 0
+                        warned_silence = False
+
                     prediction = self.oww_model.predict(pcm)
                     score = prediction.get(WAKE_WORD_MODEL, 0.0)
 
@@ -465,10 +517,28 @@ class JarvisAssistant:
         logging.info("System Tray Icon loop ended. Jarvis exiting.")
 
 
+def list_audio_devices():
+    """Utility to list all available audio input devices."""
+    print("\nAvailable Audio Input Devices:")
+    print("-----------------------------------------------------------------------------")
+    devices = sd.query_devices()
+    default_in = sd.default.device[0]
+    for idx, dev in enumerate(devices):
+        if dev["max_input_channels"] > 0:
+            host = sd.query_hostapis(dev["hostapi"])["name"]
+            is_default = " (DEFAULT)" if idx == default_in else ""
+            print(f"[{idx:2d}] {dev['name']:40s} | Host: {host:15s} | Channels: {dev['max_input_channels']}{is_default}")
+    print("-----------------------------------------------------------------------------\n")
+
+
 # ==========================================
 # MAIN ENTRYPOINT
 # ==========================================
 def main():
+    if "--list-devices" in sys.argv:
+        list_audio_devices()
+        return
+
     setup_logging()
     assistant = JarvisAssistant()
     assistant.run_tray_icon()
@@ -476,3 +546,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

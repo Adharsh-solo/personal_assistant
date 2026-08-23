@@ -31,3 +31,85 @@ Traceback (most recent call last):
 sounddevice.PortAudioError: Unanticipated host error [PaErrorCode -9999]: 'There is no driver installed on your system.' [MME error 6]
 2026-08-22 20:36:37 [INFO] State -> ERROR: Error: Unanticipated host error [PaErrorCode -9999]: 'There is no driver installed on your system.' [MME error 6]
 2026-08-22 20:36:37 [INFO] Jarvis Assistant loop terminated.
+2026-08-23 19:04:20 [INFO] ==========================================
+2026-08-23 19:04:20 [INFO] Jarvis Assistant Initializing...
+2026-08-23 19:04:20 [INFO] ==========================================
+2026-08-23 19:04:20 [INFO] Loading Faster-Whisper model ('base') on device 'cuda'...
+2026-08-23 19:04:20 [INFO] Starting System Tray Icon loop...
+2026-08-23 19:04:26 [INFO] HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+2026-08-23 19:04:27 [INFO] Faster-Whisper loaded successfully on CUDA GPU.
+2026-08-23 19:04:27 [INFO] Loading openWakeWord model ('hey_jarvis')...
+2026-08-23 19:04:32 [INFO] openWakeWord initialized successfully for model 'hey_jarvis'.
+2026-08-23 19:04:32 [INFO] State -> LISTENING: Listening for 'hey_jarvis'
+2026-08-23 19:11:50 [INFO] ==========================================
+2026-08-23 19:11:50 [INFO] Jarvis Assistant Initializing...
+2026-08-23 19:11:50 [INFO] ==========================================
+2026-08-23 19:11:50 [INFO] Loading Faster-Whisper model ('base') on device 'cuda'...
+2026-08-23 19:11:50 [INFO] Starting System Tray Icon loop...
+2026-08-23 19:11:53 [INFO] HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+2026-08-23 19:11:53 [INFO] Faster-Whisper loaded successfully on CUDA GPU.
+2026-08-23 19:11:53 [INFO] Loading openWakeWord model ('hey_jarvis')...
+2026-08-23 19:11:54 [INFO] openWakeWord initialized successfully for model 'hey_jarvis'.
+2026-08-23 19:11:54 [INFO] Using audio input device [1]: 'Microphone Array (Intel® Smart '
+2026-08-23 19:11:54 [INFO] State -> LISTENING: Listening for 'hey_jarvis'
+2026-08-23 19:12:03 [WARNING] Microphone signal level is near ZERO (Max Amp <= 2). Your microphone may be muted, disabled, or set to the wrong input device. Run 'python jarvis.py --list-devices' to check available microphones.
+2026-08-23 19:12:34 [WARNING] Microphone signal level is near ZERO (Max Amp <= 2). Your microphone may be muted, disabled, or set to the wrong input device. Run 'python jarvis.py --list-devices' to check available microphones.
+2026-08-23 19:17:49 [INFO] ==========================================
+2026-08-23 19:17:49 [INFO] Jarvis Assistant Initializing...
+2026-08-23 19:17:49 [INFO] ==========================================
+2026-08-23 19:17:49 [INFO] Loading Faster-Whisper model ('base') on device 'cuda'...
+2026-08-23 19:17:49 [INFO] Starting System Tray Icon loop...
+2026-08-23 19:17:52 [INFO] HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+2026-08-23 19:17:53 [INFO] Faster-Whisper loaded successfully on CUDA GPU.
+2026-08-23 19:17:53 [INFO] Loading openWakeWord model ('hey_jarvis')...
+2026-08-23 19:17:55 [INFO] openWakeWord initialized successfully for model 'hey_jarvis'.
+2026-08-23 19:17:55 [INFO] Using audio input device [12]: 'Microphone Array 3 ()' (4 channels)
+2026-08-23 19:17:55 [INFO] State -> LISTENING: Listening for 'hey_jarvis'
+2026-08-23 19:17:55 [ERROR] Fatal error in assistant loop: Error opening RawInputStream: Unanticipated host error [PaErrorCode -9999]: 'Blocking API not supported yet' [Windows WDM-KS error -9999]
+Traceback (most recent call last):
+  File "D:\personal_assistant\jarvis.py", line 403, in run_assistant_loop
+    with sd.RawInputStream(
+  File "C:\Users\Adharsh PB\AppData\Local\Programs\Python\Python310\lib\site-packages\sounddevice.py", line 1259, in __init__
+    _StreamBase.__init__(self, kind='input', wrap_callback='buffer',
+  File "C:\Users\Adharsh PB\AppData\Local\Programs\Python\Python310\lib\site-packages\sounddevice.py", line 914, in __init__
+    _check(_lib.Pa_OpenStream(self._ptr, iparameters, oparameters,
+  File "C:\Users\Adharsh PB\AppData\Local\Programs\Python\Python310\lib\site-packages\sounddevice.py", line 2836, in _check
+    raise PortAudioError(errormsg, err, hosterror_info)
+sounddevice.PortAudioError: Error opening RawInputStream: Unanticipated host error [PaErrorCode -9999]: 'Blocking API not supported yet' [Windows WDM-KS error -9999]
+2026-08-23 19:17:55 [INFO] State -> ERROR: Error: Error opening RawInputStream: Unanticipated host error [PaErrorCode -9999]: 'Blocking API not supported yet' [Windows WDM-KS error -9999]
+2026-08-23 19:17:55 [INFO] Jarvis Assistant loop terminated.
+2026-08-23 19:24:34 [INFO] ==========================================
+2026-08-23 19:24:34 [INFO] Jarvis Assistant Initializing...
+2026-08-23 19:24:34 [INFO] ==========================================
+2026-08-23 19:24:34 [INFO] Loading Faster-Whisper model ('base') on device 'cuda'...
+2026-08-23 19:24:34 [INFO] Starting System Tray Icon loop...
+2026-08-23 19:24:37 [INFO] HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+2026-08-23 19:24:38 [INFO] Faster-Whisper loaded successfully on CUDA GPU.
+2026-08-23 19:24:38 [INFO] Loading openWakeWord model ('hey_jarvis')...
+2026-08-23 19:24:40 [INFO] openWakeWord initialized successfully for model 'hey_jarvis'.
+2026-08-23 19:24:40 [INFO] Using audio input device [1]: 'Microphone Array (Intel® Smart ' (4 channels)
+2026-08-23 19:24:40 [INFO] State -> LISTENING: Listening for 'hey_jarvis'
+2026-08-23 19:24:49 [WARNING] Microphone signal level is near ZERO (Max Amp <= 2). Your microphone may be muted, disabled, or set to the wrong input device. Run 'python jarvis.py --list-devices' to check available microphones.
+2026-08-23 19:28:43 [ERROR] Fatal error in assistant loop: Unanticipated host error [PaErrorCode -9999]: 'There is no driver installed on your system.' [MME error 6]
+Traceback (most recent call last):
+  File "D:\personal_assistant\jarvis.py", line 416, in run_assistant_loop
+    pcm_data, overflowed = stream.read(CHUNK_SIZE)
+  File "C:\Users\Adharsh PB\AppData\Local\Programs\Python\Python310\lib\site-packages\sounddevice.py", line 1217, in _raw_read
+    _check(err)
+  File "C:\Users\Adharsh PB\AppData\Local\Programs\Python\Python310\lib\site-packages\sounddevice.py", line 2836, in _check
+    raise PortAudioError(errormsg, err, hosterror_info)
+sounddevice.PortAudioError: Unanticipated host error [PaErrorCode -9999]: 'There is no driver installed on your system.' [MME error 6]
+2026-08-23 19:28:43 [INFO] State -> ERROR: Error: Unanticipated host error [PaErrorCode -9999]: 'There is no driver installed on your system.' [MME error 6]
+2026-08-23 19:28:43 [INFO] Jarvis Assistant loop terminated.
+2026-08-23 19:30:41 [INFO] ==========================================
+2026-08-23 19:30:41 [INFO] Jarvis Assistant Initializing...
+2026-08-23 19:30:41 [INFO] ==========================================
+2026-08-23 19:30:41 [INFO] Loading Faster-Whisper model ('base') on device 'cuda'...
+2026-08-23 19:30:41 [INFO] Starting System Tray Icon loop...
+2026-08-23 19:30:44 [INFO] HTTP Request: GET https://huggingface.co/api/models/Systran/faster-whisper-base/revision/main "HTTP/1.1 200 OK"
+2026-08-23 19:30:44 [INFO] Faster-Whisper loaded successfully on CUDA GPU.
+2026-08-23 19:30:44 [INFO] Loading openWakeWord model ('hey_jarvis')...
+2026-08-23 19:30:46 [INFO] openWakeWord initialized successfully for model 'hey_jarvis'.
+2026-08-23 19:30:46 [INFO] Using audio input device [1]: 'Microphone Array (Intel® Smart ' (4 channels)
+2026-08-23 19:30:46 [INFO] State -> LISTENING: Listening for 'hey_jarvis'
+2026-08-23 19:30:56 [WARNING] Microphone signal level is near ZERO (Max Amp <= 2). Your microphone may be muted, disabled, or set to the wrong input device. Run 'python jarvis.py --list-devices' to check available microphones.
