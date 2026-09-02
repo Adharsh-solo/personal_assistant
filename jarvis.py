@@ -44,8 +44,9 @@ OLLAMA_MODEL = "llama3.1:8b"
 INPUT_DEVICE_INDEX = None       # None uses standard default MME driver (Microsoft Sound Mapper)
 SAMPLE_RATE = 16000             # openWakeWord requires 16000 Hz
 
+AUDIO_GAIN = 10.0               # Digital software volume multiplier for low-gain mic hardware
 CHUNK_SIZE = 1280               # 1280 samples (~80ms chunk at 16kHz)
-SILENCE_THRESHOLD = 0.015       # Energy threshold for silence detection
+SILENCE_THRESHOLD = 0.005       # Energy threshold for silence detection (lowered for gained signal)
 SILENCE_DURATION = 1.5          # Seconds of silence to trigger end of speech
 MAX_RECORD_SECONDS = 12.0       # Maximum audio recording duration per prompt
 
@@ -169,14 +170,24 @@ class JarvisAssistant:
         self.whisper_model = None
         self.tray_icon = None
 
+        # GUI Event Callbacks
+        self.on_state_change = None
+        self.on_user_transcript = None
+        self.on_llm_response = None
+
     def set_state(self, new_state, description):
-        """Update assistant state and refresh system tray icon visual."""
+        """Update assistant state and refresh system tray icon visual and GUI listeners."""
         self.state = new_state
         self.state_text = description
         logging.info(f"State -> {new_state.upper()}: {description}")
         if self.tray_icon:
             self.tray_icon.icon = create_tray_icon_image(new_state)
             self.tray_icon.title = f"Jarvis - {description}"[:120]
+        if self.on_state_change:
+            try:
+                self.on_state_change(new_state, description)
+            except Exception as e:
+                logging.error(f"Error in on_state_change callback: {e}")
 
     def init_whisper(self):
         """Lazy load Faster-Whisper model on startup."""
@@ -265,6 +276,9 @@ class JarvisAssistant:
                 else:
                     audio_chunk = data.flatten()
 
+                # Apply digital gain multiplier for low-volume mics
+                audio_chunk = np.clip(audio_chunk * AUDIO_GAIN, -1.0, 1.0)
+
                 audio_buffer.append(audio_chunk)
 
                 # Compute Root Mean Square (RMS) energy
@@ -326,7 +340,7 @@ class JarvisAssistant:
         }
 
         try:
-            response = requests.post(f"{OLLAMA_URL}/api/chat", json=payload, timeout=30)
+            response = requests.post(f"{OLLAMA_URL}/api/chat", json=payload, timeout=120)
             if response.status_code == 200:
                 res_data = response.json()
                 reply = res_data.get("message", {}).get("content", "").strip()
@@ -336,6 +350,9 @@ class JarvisAssistant:
                 err_msg = f"Ollama HTTP {response.status_code}: {response.text}"
                 logging.error(err_msg)
                 return "I encountered an error communicating with my local LLM model."
+        except requests.exceptions.Timeout:
+            logging.error("Ollama request timed out after 120 seconds (first query cold-start or slow response).")
+            return "The local AI model took too long to respond. Please ask your question again."
         except requests.exceptions.ConnectionError:
             logging.error(f"Failed to connect to Ollama at {OLLAMA_URL}. Ensure Ollama service is running.")
             return "I cannot connect to Ollama. Please make sure the Ollama application is running on your PC."
@@ -420,9 +437,12 @@ class JarvisAssistant:
                     pcm_raw = np.frombuffer(pcm_data, dtype=np.int16)
                     if dev_channels > 1 and len(pcm_raw) >= dev_channels:
                         pcm_matrix = pcm_raw.reshape(-1, dev_channels)
-                        pcm = np.mean(pcm_matrix, axis=1).astype(np.int16)
+                        pcm = np.mean(pcm_matrix, axis=1).astype(np.float32)
                     else:
-                        pcm = pcm_raw
+                        pcm = pcm_raw.astype(np.float32)
+
+                    # Apply digital software gain for low-gain mic hardware
+                    pcm = np.clip(pcm * AUDIO_GAIN, -32768, 32767).astype(np.int16)
 
                     # Diagnostic check for dead/muted microphone signal
                     max_amp = np.max(np.abs(pcm)) if len(pcm) > 0 else 0
@@ -460,8 +480,14 @@ class JarvisAssistant:
                             self.set_state("listening", f"Listening for '{WAKE_WORD_MODEL}'")
                             continue
 
+                        if self.on_user_transcript:
+                            self.on_user_transcript(user_text)
+
                         # 3. Get LLM Response
                         llm_reply = self.get_llm_response(user_text)
+
+                        if self.on_llm_response:
+                            self.on_llm_response(llm_reply)
 
                         # 4. Speak Response
                         self.speak(llm_reply)
@@ -474,6 +500,21 @@ class JarvisAssistant:
             self.set_state("error", f"Error: {e}")
         finally:
             logging.info("Jarvis Assistant loop terminated.")
+
+    def process_text_prompt(self, user_text):
+        """Process a typed text prompt from GUI or API directly."""
+        if not user_text or self.is_paused:
+            return
+        threading.Thread(target=self._exec_text_prompt, args=(user_text,), daemon=True).start()
+
+    def _exec_text_prompt(self, user_text):
+        if self.on_user_transcript:
+            self.on_user_transcript(user_text)
+        llm_reply = self.get_llm_response(user_text)
+        if self.on_llm_response:
+            self.on_llm_response(llm_reply)
+        self.speak(llm_reply)
+        self.set_state("listening", f"Listening for '{WAKE_WORD_MODEL}'")
 
     def toggle_pause(self, icon, item):
         """Toggle pause state from system tray menu."""
