@@ -29,7 +29,7 @@ from PIL import Image, ImageDraw
 # ==========================================
 # openWakeWord Settings (No API key required)
 WAKE_WORD_MODEL = "hey_jarvis"   # Pre-trained openWakeWord model ("hey_jarvis", "alexa", etc.)
-WAKE_WORD_THRESHOLD = 0.5       # Detection confidence threshold (0.0 to 1.0)
+WAKE_WORD_THRESHOLD = 0.35       # Detection confidence threshold (0.35 for reliable activation)
 
 # Whisper STT Settings
 WHISPER_MODEL_SIZE = "base"     # "tiny", "base", "small", "medium", "large-v3"
@@ -44,7 +44,7 @@ OLLAMA_MODEL = "llama3.1:8b"
 INPUT_DEVICE_INDEX = None       # None uses standard default MME driver (Microsoft Sound Mapper)
 SAMPLE_RATE = 16000             # openWakeWord requires 16000 Hz
 
-AUDIO_GAIN = 10.0               # Digital software volume multiplier for low-gain mic hardware
+AUDIO_GAIN = 25.0               # Software volume multiplier to boost low-gain mic hardware
 CHUNK_SIZE = 1280               # 1280 samples (~80ms chunk at 16kHz)
 SILENCE_THRESHOLD = 0.005       # Energy threshold for silence detection (lowered for gained signal)
 SILENCE_DURATION = 1.5          # Seconds of silence to trigger end of speech
@@ -272,12 +272,17 @@ class JarvisAssistant:
                     logging.warning("Audio recording buffer overflowed.")
 
                 if dev_channels > 1:
-                    audio_chunk = np.mean(data, axis=1).astype(np.float32)
+                    audio_chunk = data[:, 0].flatten().astype(np.float32)
                 else:
                     audio_chunk = data.flatten()
 
-                # Apply digital gain multiplier for low-volume mics
-                audio_chunk = np.clip(audio_chunk * AUDIO_GAIN, -1.0, 1.0)
+                # Dynamic Automatic Gain Control (AGC) for whisper recording
+                max_val = np.max(np.abs(audio_chunk)) if len(audio_chunk) > 0 else 0
+                if max_val > 0.001:
+                    scale = min(50.0, 0.5 / max_val)
+                    audio_chunk = np.clip(audio_chunk * scale, -1.0, 1.0)
+                else:
+                    audio_chunk = np.clip(audio_chunk * AUDIO_GAIN, -1.0, 1.0)
 
                 audio_buffer.append(audio_chunk)
 
@@ -315,8 +320,32 @@ class JarvisAssistant:
             logging.error(f"Error during transcription: {e}")
             return ""
 
+    def ensure_ollama_running(self):
+        """Attempt to launch Ollama service in background if not already responding."""
+        try:
+            resp = requests.get(f"{OLLAMA_URL}/api/tags", timeout=2)
+            if resp.status_code == 200:
+                return True
+        except Exception:
+            pass
+
+        logging.info("Ollama service not detected at %s. Attempting to auto-start...", OLLAMA_URL)
+        try:
+            import subprocess
+            subprocess.Popen(
+                ["ollama", "serve"],
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0) if os.name == "nt" else 0,
+            )
+            time.sleep(2)
+            return True
+        except Exception as e:
+            logging.warning("Could not auto-start Ollama service: %s", e)
+            return False
+
     def get_llm_response(self, text):
-        """Send transcribed prompt to Ollama local API."""
+        """Send transcribed prompt to Ollama local API with connection retries and auto-start."""
         if not text:
             return "I couldn't hear what you said. Please try again."
 
@@ -339,26 +368,33 @@ class JarvisAssistant:
             "stream": False,
         }
 
-        try:
-            response = requests.post(f"{OLLAMA_URL}/api/chat", json=payload, timeout=120)
-            if response.status_code == 200:
-                res_data = response.json()
-                reply = res_data.get("message", {}).get("content", "").strip()
-                logging.info(f"LLM Response: '{reply}'")
-                return reply
-            else:
-                err_msg = f"Ollama HTTP {response.status_code}: {response.text}"
-                logging.error(err_msg)
-                return "I encountered an error communicating with my local LLM model."
-        except requests.exceptions.Timeout:
-            logging.error("Ollama request timed out after 120 seconds (first query cold-start or slow response).")
-            return "The local AI model took too long to respond. Please ask your question again."
-        except requests.exceptions.ConnectionError:
-            logging.error(f"Failed to connect to Ollama at {OLLAMA_URL}. Ensure Ollama service is running.")
-            return "I cannot connect to Ollama. Please make sure the Ollama application is running on your PC."
-        except Exception as e:
-            logging.error(f"Unexpected error calling Ollama API: {e}")
-            return "An unexpected error occurred while generating a response."
+        max_retries = 3
+        for attempt in range(1, max_retries + 1):
+            try:
+                response = requests.post(f"{OLLAMA_URL}/api/chat", json=payload, timeout=120)
+                if response.status_code == 200:
+                    res_data = response.json()
+                    reply = res_data.get("message", {}).get("content", "").strip()
+                    logging.info(f"LLM Response: '{reply}'")
+                    return reply
+                else:
+                    err_msg = f"Ollama HTTP {response.status_code}: {response.text}"
+                    logging.error(err_msg)
+                    return "I encountered an error communicating with my local LLM model."
+            except requests.exceptions.Timeout:
+                logging.error("Ollama request timed out after 120 seconds (first query cold-start or slow response).")
+                return "The local AI model took too long to respond. Please ask your question again."
+            except requests.exceptions.ConnectionError:
+                logging.warning(f"Connection attempt {attempt}/{max_retries} to Ollama at {OLLAMA_URL} failed.")
+                if attempt < max_retries:
+                    self.ensure_ollama_running()
+                    time.sleep(2 * attempt)
+                else:
+                    logging.error(f"Failed to connect to Ollama at {OLLAMA_URL} after {max_retries} attempts.")
+                    return "I cannot connect to Ollama. Please make sure the Ollama application is running on your PC."
+            except Exception as e:
+                logging.error(f"Unexpected error calling Ollama API: {e}")
+                return "An unexpected error occurred while generating a response."
 
     def speak(self, text):
         """Convert response text to spoken audio using pyttsx3."""
@@ -390,6 +426,9 @@ class JarvisAssistant:
 
     def run_assistant_loop(self):
         """Main background thread loop for Jarvis voice interactions."""
+        # Ensure Ollama service is active
+        self.ensure_ollama_running()
+
         # Initialize whisper model lazily in background thread
         self.whisper_model = self.init_whisper()
         if not self.whisper_model:
@@ -437,30 +476,34 @@ class JarvisAssistant:
                     pcm_raw = np.frombuffer(pcm_data, dtype=np.int16)
                     if dev_channels > 1 and len(pcm_raw) >= dev_channels:
                         pcm_matrix = pcm_raw.reshape(-1, dev_channels)
-                        pcm = np.mean(pcm_matrix, axis=1).astype(np.float32)
+                        # Use primary channel 0 instead of averaging to avoid volume reduction on multi-channel mic arrays
+                        pcm = pcm_matrix[:, 0].astype(np.float32)
                     else:
                         pcm = pcm_raw.astype(np.float32)
 
-                    # Apply digital software gain for low-gain mic hardware
-                    pcm = np.clip(pcm * AUDIO_GAIN, -32768, 32767).astype(np.int16)
+                    raw_amp = np.max(np.abs(pcm)) if len(pcm) > 0 else 0
+                    pcm_gained = np.clip(pcm * AUDIO_GAIN, -32768, 32767).astype(np.int16)
 
                     # Diagnostic check for dead/muted microphone signal
-                    max_amp = np.max(np.abs(pcm)) if len(pcm) > 0 else 0
-                    if max_amp <= 2:
+                    if raw_amp <= 2:
                         silent_chunk_count += 1
-                        if silent_chunk_count >= 100 and not warned_silence:
+                        if silent_chunk_count >= 200 and not warned_silence:
                             logging.warning(
                                 "Microphone signal level is near ZERO (Max Amp <= 2). "
-                                "Your microphone may be muted, disabled, or set to the wrong input device. "
-                                "Run 'python jarvis.py --list-devices' to check available microphones."
+                                "If your room is completely quiet, this is normal. "
+                                "If speaking produces no response, your mic may be muted or set to the wrong input device. "
+                                "Run 'python jarvis.py --test-mic' to test your microphone live."
                             )
                             warned_silence = True
                     else:
                         silent_chunk_count = 0
                         warned_silence = False
 
-                    prediction = self.oww_model.predict(pcm)
+                    prediction = self.oww_model.predict(pcm_gained)
                     score = prediction.get(WAKE_WORD_MODEL, 0.0)
+
+                    if score > 0.10:
+                        logging.info(f"[WAKEWORD CONFIDENCE] 'hey_jarvis' score: {score:.3f} (Threshold: {WAKE_WORD_THRESHOLD})")
 
                     if score >= WAKE_WORD_THRESHOLD:
                         logging.info(f">>> WAKE WORD DETECTED ('{WAKE_WORD_MODEL}', score: {score:.2f}) <<<")
@@ -572,12 +615,61 @@ def list_audio_devices():
     print("-----------------------------------------------------------------------------\n")
 
 
+def test_mic_live():
+    """Interactive diagnostic tool to test microphone volume and wake word detection live."""
+    list_audio_devices()
+    print("Testing live microphone stream for 10 seconds...")
+    print("Say 'Hey Jarvis' into your microphone now!\n")
+
+    import openwakeword
+    from openwakeword.model import Model
+
+    try:
+        oww = Model(wakeword_models=[WAKE_WORD_MODEL], inference_framework="onnx")
+    except Exception as e:
+        print(f"Error loading openWakeWord: {e}")
+        return
+
+    dev_idx = INPUT_DEVICE_INDEX if INPUT_DEVICE_INDEX is not None else sd.default.device[0]
+    try:
+        dev_info = sd.query_devices(dev_idx, "input")
+        ch = max(1, dev_info["max_input_channels"])
+    except Exception:
+        ch = 1
+
+    with sd.RawInputStream(samplerate=SAMPLE_RATE, blocksize=CHUNK_SIZE, dtype="int16", channels=ch, device=dev_idx) as stream:
+        for i in range(120):  # ~10 seconds
+            pcm_data, _ = stream.read(CHUNK_SIZE)
+            pcm_raw = np.frombuffer(pcm_data, dtype=np.int16)
+            if ch > 1 and len(pcm_raw) >= ch:
+                pcm_matrix = pcm_raw.reshape(-1, ch)
+                pcm = pcm_matrix[:, 0].astype(np.float32)
+            else:
+                pcm = pcm_raw.astype(np.float32)
+
+            raw_amp = np.max(np.abs(pcm)) if len(pcm) > 0 else 0
+            pcm_gained = np.clip(pcm * AUDIO_GAIN, -32768, 32767).astype(np.int16)
+
+            pred = oww.predict(pcm_gained)
+            score = pred.get(WAKE_WORD_MODEL, 0.0)
+
+            bars = "█" * int(min(raw_amp / 500.0, 30))
+            score_bar = "🔥 DETECTED!" if score >= WAKE_WORD_THRESHOLD else (f"Score: {score:.2f}" if score > 0.1 else "")
+            print(f"\r[Vol: {raw_amp:5.0f}] |{bars:<30}| {score_bar:20s}", end="", flush=True)
+            time.sleep(0.08)
+    print("\n\nTest completed.\n")
+
+
 # ==========================================
 # MAIN ENTRYPOINT
 # ==========================================
 def main():
     if "--list-devices" in sys.argv:
         list_audio_devices()
+        return
+
+    if "--test-mic" in sys.argv:
+        test_mic_live()
         return
 
     setup_logging()
